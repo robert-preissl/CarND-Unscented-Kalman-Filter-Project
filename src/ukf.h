@@ -1,9 +1,12 @@
+
 #ifndef UKF_H
 #define UKF_H
+
 #include "Eigen/Dense"
 #include "measurement_package.h"
 #include "ground_truth_package.h"
 #include <vector>
+#include "tools.h"
 
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
@@ -26,8 +29,12 @@ public:
   ///* state covariance matrix
   MatrixXd P_;
 
-  ///* predicted sigma points matrix
+  // matrix with predicted sigma points as columns
   MatrixXd Xsig_pred_;
+
+  // noise covariance matrix for Radar & Laser
+  MatrixXd R_radar_;
+  MatrixXd R_laser_;
 
   ///* time when the state is true, in us
   long time_us_;
@@ -62,6 +69,9 @@ public:
   ///* Augmented state dimension
   int n_aug_;
 
+  int n_z_radar_;
+  int n_z_lidar_;
+
   ///* Sigma point spreading parameter
   double lambda_;
 
@@ -71,10 +81,21 @@ public:
   ///* the current NIS for laser
   double NIS_laser_;
 
+  // previous timestamp
+  long previous_timestamp_;
+
+  double delta_t_;
+
   /**
    * Constructor
    */
   UKF();
+
+
+  /**
+   * Initialization
+   */
+  int Initialize(const MeasurementPackage& meas_package);
 
   /**
    * Destructor
@@ -82,30 +103,52 @@ public:
   virtual ~UKF();
 
   /**
+   * Assign initial values
+   */
+  void AssignInitValues(VectorXd x_in, MatrixXd P_in, MatrixXd R_radar_init, MatrixXd R_laser_init, VectorXd weights_init);
+
+  /**
    * ProcessMeasurement
    * @param meas_package The latest measurement data of either radar or laser
    * @param gt_package The ground truth of the state x at measurement time
    */
-  void ProcessMeasurement(MeasurementPackage meas_package);
+  int ProcessMeasurement(const MeasurementPackage& meas_package);
 
   /**
    * Prediction Predicts sigma points, the state, and the state covariance
    * matrix
    * @param delta_t Time between k and k+1 in s
    */
-  void Prediction(double delta_t);
+  void Predict();
+
+  void Update(const MeasurementPackage& meas_package);
+
+  // compute augmented sigma points
+  MatrixXd AugmentedSigmaPoints();
+
+  // predict sigma points
+  void SigmaPointPrediction(const MatrixXd& Xsig_aug);
+
+  // calculate the predicted state covariance matrix and state x
+  void PredictMeanAndCovariance();
 
   /**
    * Updates the state and the state covariance matrix using a laser measurement
    * @param meas_package The measurement at k+1
    */
-  void UpdateLidar(MeasurementPackage meas_package);
+  void UpdateLidar(const MeasurementPackage& meas_package);
 
   /**
    * Updates the state and the state covariance matrix using a radar measurement
    * @param meas_package The measurement at k+1
    */
-  void UpdateRadar(MeasurementPackage meas_package);
+  void UpdateRadar(const MeasurementPackage& meas_package);
+
+  // compute cross correlation matrix
+  MatrixXd CrossCorrelationMatrix(int n_z, const MatrixXd& Zsig, const VectorXd& z_pred, bool angle_normalize);
+
+  // compute the measurement covariance matrix
+  MatrixXd MeasurementCovarianceMatrix(int n_z, const MatrixXd& Zsig, const VectorXd& z_pred, bool angle_normalize);
 };
 
 #endif /* UKF_H */

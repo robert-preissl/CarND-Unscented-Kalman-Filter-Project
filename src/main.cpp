@@ -1,5 +1,5 @@
 
-//   UKF
+//        UKF
 
 // state vector x = p_x, p_y, v, ψ, ψ˙
 // .. v and ψ˙  are const
@@ -9,10 +9,34 @@
 // sigma_points : representation of whole distribution. around mean and in certain relation to sigma of each state dimension
 // -> throw them into f and compute mean and covariance. gives good approximation of real distribution of measurements
 
+//
+
+//  A) Predict
+
 // 1. generate sigma points
 //      Xk∣k=[Xk∣kX k∣k +√(λ+nx)Pk∣k  Xk∣k −√(λ+nx)Pk∣k]    // remember that Xk∣k is the first column of the Sigma matrix.
 
-// 2.
+// 2. predict sigma points (15 -- see below why) - insert into process function
+
+// 3. calculate predicted mean and covariance from predicted sigma points
+
+// note, in process function we have noise vector. since f is non-linear, noise is applied non lin.
+//  -> different to EKF. process noise is vector of 2. appended to state vector (in EKF added); plus we adjust P.
+//  -> augmentation
+//  -> adapt sigma point generation since now (5+2)*2 +1 points
+
+
+//   B) Update
+
+//  1. transform predicted state into meass. space;
+
+//  2. reuse sigma points and transfer into meas space and calculate mean and covariance of predicted measurement
+
+//  3. add meas cov noise R
+
+//  need cross correlation between sigma points in state space and sigma points in meas space
+
+
 
 
 #include <iostream>

@@ -52,3 +52,13 @@ VectorXd Tools::ConvertPolarToCartesian(const VectorXd& polar_vec) {
 	cartesian_vec << polar_vec(0) * cos(polar_vec(1)), polar_vec(0) * sin(polar_vec(1));
 	return cartesian_vec;
 }
+
+// constrain an angle between -pi and pi
+// http://stackoverflow.com/questions/11498169/dealing-with-angle-wrap-in-c-code
+float Tools::constrainAngle(float x) {
+    x = fmod(x + M_PI, 2* M_PI);
+    if (x < 0)
+        x += 2*M_PI;
+
+    return x - M_PI;
+}

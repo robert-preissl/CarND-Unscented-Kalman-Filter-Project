@@ -167,16 +167,18 @@ int main(int argc, char* argv[]) {
     }
 
     // read ground truth data to compare later
-    // according to project specs "Every px, py must fall within 0.10 of the ground truth as measured by the RMSE."
-    // -> so, skipping velocities
     float x_gt;
     float y_gt;
+    float vx_gt;
+    float vy_gt;
 
     iss >> x_gt;
     iss >> y_gt;
+    iss >> vx_gt;
+    iss >> vy_gt;
 
-    gt_package.gt_values_ = VectorXd(2);
-    gt_package.gt_values_ << x_gt, y_gt;
+    gt_package.gt_values_ = VectorXd(4);
+    gt_package.gt_values_ << x_gt, y_gt, vx_gt, vy_gt;
     gt_pack_list.push_back(gt_package);
 
   }
@@ -223,22 +225,20 @@ int main(int argc, char* argv[]) {
       out_file_ << ro * sin(phi) << "\t"; // p2_meas
     }
 
-
-    // out_file_ << "\n";
-    // output the ground truth packages
-
-    // according to project specs "Every px, py must fall within 0.10 of the ground truth as measured by the RMSE."
-    // -> so, skipping velocities
     out_file_ << gt_pack_list[k].gt_values_(0) << "\t";
     out_file_ << gt_pack_list[k].gt_values_(1) << "\t";
-    //out_file_ << gt_pack_list[k].gt_values_(2) << "\t";
-    //out_file_ << gt_pack_list[k].gt_values_(3) << "\t";
+    out_file_ << gt_pack_list[k].gt_values_(2) << "\t";
+    out_file_ << gt_pack_list[k].gt_values_(3) << "\t";
 
     out_file_ << ukf.NIS_laser_ << "\t";
     out_file_ << ukf.NIS_radar_ << "\n";
 
-    VectorXd positon_estimate = VectorXd(2);
-    positon_estimate << ukf.x_(0), ukf.x_(1);
+    VectorXd positon_estimate = VectorXd(4);
+    float px = ukf.x_(0);
+    float py = ukf.x_(1);
+    float vx = ukf.x_[2] * cos(ukf.x_[3]);
+    float vy = ukf.x_[2] * sin(ukf.x_[3]);
+    positon_estimate << px, py, vx, vy;
 
     estimations.push_back(positon_estimate);
     ground_truth.push_back(gt_pack_list[k].gt_values_);
@@ -250,7 +250,7 @@ int main(int argc, char* argv[]) {
   cout << " estimations.size = " << estimations.size() << " / estimations.rows() = " << estimations[0].rows() << " / estimations.cols() = " <<  estimations[0].cols() << endl;
   cout << " ground_truth.size = " << ground_truth.size() << " / ground_truth.rows() = " << ground_truth[0].rows() << " / ground_truth.cols() = " <<  ground_truth[0].cols() << endl;
 
-  cout << "Accuracy - RMSE:" << endl << tools.CalculateRMSE(estimations, ground_truth, 2) << endl;
+  cout << "Accuracy - RMSE:" << endl << tools.CalculateRMSE(estimations, ground_truth, 4) << endl;
 
 
   // close files

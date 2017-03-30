@@ -32,6 +32,9 @@ public:
   */
   VectorXd ConvertPolarToCartesian(const VectorXd& polar_vec);
 
+  // constrain an angle between -pi and pi
+  float constrainAngle(float x);
+
 };
 
 #endif /* TOOLS_H_ */

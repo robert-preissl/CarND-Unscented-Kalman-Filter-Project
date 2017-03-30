@@ -8,11 +8,6 @@ using namespace std;
  * Initializes the Unscented Kalman Filter - UKF
  */
 UKF::UKF() {
-  // if this is false, laser measurements will be ignored (except during init)
-  use_laser_ = true;
-
-  // if this is false, radar measurements will be ignored (except during init)
-  use_radar_ = true;
 
   // initial state vector
   x_ = VectorXd(5);
@@ -21,7 +16,7 @@ UKF::UKF() {
   P_ = MatrixXd(5, 5);
 
   //Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 1;
+  std_a_ = 1.5;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
   std_yawdd_ = 1;
@@ -59,6 +54,8 @@ UKF::UKF() {
   Xsig_pred_ = MatrixXd(n_x_, 2 * n_aug_ + 1);
 
   weights_ = VectorXd(2*n_aug_+1);
+
+  tools = new Tools();
 }
 
 int UKF::Initialize(const MeasurementPackage& meas_package) {
@@ -76,12 +73,11 @@ int UKF::Initialize(const MeasurementPackage& meas_package) {
   // state covariance matrix P
   MatrixXd P_init = MatrixXd(n_x_, n_x_);
   // initial covariance matrix
-  P_init << 10, 0, 0, 0, 0,
-            0, 10, 0, 0, 0,
-            0, 0, 10, 0, 0,
-            0, 0, 0, 10, 0,
-            0, 0, 0, 0, 10;
-
+  P_init << 1, 0, 0, 0, 0,
+            0, 1, 0, 0, 0,
+            0, 0, 1, 0, 0,
+            0, 0, 0, 1, 0,
+            0, 0, 0, 0, 1;
 
   if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
     /**
@@ -92,8 +88,7 @@ int UKF::Initialize(const MeasurementPackage& meas_package) {
     // 0 .. radial distance from origin (ro) || 1 .. angle (theta)
     position_polar_coords << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1];
 
-    Tools tools;
-    position_cartesian_coords = tools.ConvertPolarToCartesian(position_polar_coords);
+    position_cartesian_coords = tools->ConvertPolarToCartesian(position_polar_coords);
 
     // state vector x = p_x, p_y, v, ψ, ψ˙
     x_init << position_cartesian_coords(0), position_cartesian_coords(1), 0.0, 0.0, 0.0;
@@ -147,7 +142,9 @@ void UKF::AssignInitValues(VectorXd x_in, MatrixXd P_in, MatrixXd R_radar_init, 
   weights_ = weights_init;
 }
 
-UKF::~UKF() {}
+UKF::~UKF() {
+  delete tools;
+}
 
 /**
  * @param {MeasurementPackage} meas_package The latest measurement data of
@@ -169,6 +166,16 @@ int UKF::ProcessMeasurement(const MeasurementPackage& meas_package) {
    previous_timestamp_ = meas_package.timestamp_;
    printf("delta_t_ = %.17g \n", delta_t_);
 
+   // for large delta_t_ values call Predict repeatedly
+   //  (tip taken from Slack SDCN channel)
+   while (delta_t_ > 0.1) {
+       double tmp = delta_t_;
+       delta_t_ = 0.05;
+       Predict();
+       delta_t_ = tmp;
+       delta_t_ -= 0.05;
+   }
+
    Predict();
 
 
@@ -181,6 +188,7 @@ int UKF::ProcessMeasurement(const MeasurementPackage& meas_package) {
    // print the output
    std::cout << endl;
    std::cout << endl;
+
    cout << "x_ = " << x_ << endl;
    cout << "P_ = " << P_ << endl;
 
@@ -224,19 +232,13 @@ MatrixXd UKF::CrossCorrelationMatrix(int n_z, const MatrixXd& Zsig, const Vector
     //residual
     VectorXd z_diff = Zsig.col(i) - z_pred;
     //angle normalization
-    if( angle_normalize ) {
-      while (z_diff(1)> M_PI) z_diff(1)-=2.*M_PI;
-      while (z_diff(1)<-M_PI) z_diff(1)+=2.*M_PI;
-    }
+    z_diff(1) = tools->constrainAngle(z_diff(1));
 
     // state difference
     VectorXd x_diff = Xsig_pred_.col(i) - x_;
 
     //angle normalization
-    if( angle_normalize ) {
-      while (x_diff(3)> M_PI) x_diff(3)-=2.*M_PI;
-      while (x_diff(3)<-M_PI) x_diff(3)+=2.*M_PI;
-    }
+    x_diff(3) = tools->constrainAngle(x_diff(3));
 
     Tc = Tc + weights_(i) * x_diff * z_diff.transpose();
   }
@@ -252,10 +254,7 @@ MatrixXd UKF::MeasurementCovarianceMatrix(int n_z, const MatrixXd& Zsig, const V
       //residual
       VectorXd z_diff = Zsig.col(i) - z_pred;
       //angle normalization
-      if (angle_normalize) {
-        while (z_diff(1) > M_PI) z_diff(1) -= 2. * M_PI;
-        while (z_diff(1) < -M_PI) z_diff(1) += 2. * M_PI;
-      }
+      z_diff(1) = tools->constrainAngle(z_diff(1));
 
       S = S + weights_(i) * z_diff * z_diff.transpose();
   }
@@ -359,8 +358,7 @@ void UKF::UpdateRadar(const MeasurementPackage& meas_package) {
   VectorXd z_diff = z - z_pred;
 
   //angle normalization
-  while (z_diff(1)> M_PI) z_diff(1)-=2.*M_PI;
-  while (z_diff(1)<-M_PI) z_diff(1)+=2.*M_PI;
+  z_diff(1) = tools->constrainAngle(z_diff(1));
 
   //update state mean and covariance matrix
   x_ = x_ + K * z_diff;
@@ -487,8 +485,7 @@ void UKF::PredictMeanAndCovariance() {
     // state difference
     VectorXd x_diff = Xsig_pred_.col(i) - x_;
     //angle normalization
-    while (x_diff(3)> M_PI) x_diff(3)-= 2.*M_PI;
-    while (x_diff(3)<-M_PI) x_diff(3)+= 2.*M_PI;
+    x_diff(3) = tools->constrainAngle(x_diff(3));
 
     P_ = P_ + weights_(i) * x_diff * x_diff.transpose() ;
   }

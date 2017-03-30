@@ -86,6 +86,8 @@ public:
 
   double delta_t_;
 
+  Tools* tools;
+
   /**
    * Constructor
    */
